@@ -1,66 +1,16 @@
-# scheduling_app
-Timetable management software standalone offline application. can handle parallel sessions, conservative sessions, not overlap sessions, and not available time by lectures, rooms, and also groups. 
+# React + Vite
 
-# Purpose
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-The purpose of this project generate a timetable for universities as well as collages to generate their advance logical timetables.
+Currently, two official plugins are available:
 
----
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-# Development setup
+## React Compiler
 
-### 1. Retrieve our project (if you haven't done so already)
+The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
 
-```git
- $ git clone git@github.com:ShalithaCell/scheduling_app.git
-```
+## Expanding the ESLint configuration
 
-### 2. Goto root folder and run the ```npm install``` to install the necessary packages.
-
-### 3. Init the databsase.
-
-   * Goto src folder.
-   * open the terminal and run ```npx sequelize-cli db:migrate```
-   * copy the file ```schedule.sqlite3``` to outside database folder.
-
-
-
-### 4. Goto root folder and run the ```npm start``` to run the project.
-
- # Libraries
- 
-  * [Electron](https://www.electronjs.org/)
-  * [jQuery](https://jquery.com/)
-  * [Bootstrap](https://getbootstrap.com/)
-  * [sequelize](https://sequelize.org/)
-  * [jQuery DataTables](https://datatables.net/)
-  * [jquery-confirm.js](https://craftpip.github.io/jquery-confirm/)
-  
-  # Screenshots
-  
-  * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087819-80d89280-164a-11eb-8e90-6937239716c5.png">
-  
-  * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087848-ac5b7d00-164a-11eb-8331-3b23038c5922.png">
-  
-  * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087865-ca28e200-164a-11eb-8fa5-0d5934d9c42b.png">
-  
-  * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087875-df057580-164a-11eb-9dfb-3d2533b31e15.png">
-  
-  * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087895-fd6b7100-164a-11eb-86c9-9435aedebeb0.png">
-  
-  * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087914-12480480-164b-11eb-8ba0-3a24ec0ac902.png">
-  
-   * <img width="500" alt="timetable" src="https://user-images.githubusercontent.com/43614338/97087937-34418700-164b-11eb-9cdd-db7614cb26b6.png">
-  
-  
-  # Contribute
-
-The best way to contribute is by spreading the word about the library:
-
-* Blog it
-* Comment it
-* Fork it
-* Star it
-* Share it
-
-A **HUGE THANKS** for your help.
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
