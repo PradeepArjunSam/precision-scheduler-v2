@@ -10,7 +10,8 @@ import {
   X,
   AlertCircle,
   Sun,
-  Moon
+  Moon,
+  Printer
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -161,8 +162,8 @@ export default function App() {
     <div className="flex h-screen bg-antigravity-bg text-antigravity-text overflow-hidden">
       <aside className="w-64 glass flex flex-col p-4 border-r border-antigravity-border shrink-0">
         <div className="flex items-center gap-3 mb-8 px-2">
-          <div className="w-8 h-8 bg-antigravity-accent rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-antigravity-accent/40 transition-transform hover:scale-110 cursor-pointer">P</div>
-          <span className="text-xl font-bold tracking-tight">PRECISION</span>
+          <div className="w-8 h-8 bg-antigravity-accent rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-antigravity-accent/40 transition-transform hover:scale-110 cursor-pointer">M</div>
+          <span className="text-xl font-bold tracking-tight">MCC</span>
         </div>
 
         <nav className="flex-1 space-y-1">
@@ -470,6 +471,35 @@ function AdminView({ store }) {
     setInputValue({ type: '', value: '' });
   };
 
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const importedData = JSON.parse(evt.target.result);
+        if (importedData.lecturers && importedData.sessions) {
+          setData(importedData);
+          alert("Data Imported Successfully!");
+        } else {
+          throw new Error("Invalid Data Format");
+        }
+      } catch (err) {
+        alert("Import Failed: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExport = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `precision_scheduler_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  };
+
   if (!isAdmin) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -503,9 +533,18 @@ function AdminView({ store }) {
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
       <div className="flex items-center justify-between">
         <h2 className="text-4xl font-extrabold tracking-tight">Admin Control</h2>
-        <button onClick={logout} className="text-antigravity-muted hover:text-red-500 transition-colors text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-          Logout Session <X size={16} />
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={handleExport} className="btn-primary px-4 py-2 text-xs flex items-center gap-2">
+            Export JSON
+          </button>
+          <label className="btn-primary px-4 py-2 text-xs cursor-pointer flex items-center gap-2 bg-antigravity-border hover:bg-antigravity-muted/20">
+            Import JSON
+            <input type="file" onChange={handleImport} className="hidden" accept=".json" />
+          </label>
+          <button onClick={logout} className="text-antigravity-muted hover:text-red-500 transition-colors text-sm font-bold uppercase tracking-widest flex items-center gap-2 ml-4">
+            Logout Session <X size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -565,7 +604,9 @@ function SessionsView({ store }) {
   const { data, addSession, removeSession, isAdmin } = store;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [filter, setFilter] = useState('All Programs');
+  const [filterType, setFilterType] = useState('Program'); // Program, Lecturer, Room
+  const [filterValue, setFilterValue] = useState('All');
+  const [shift, setShift] = useState('Full Day'); // Full Day, Morning, Evening
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
@@ -578,14 +619,25 @@ function SessionsView({ store }) {
   });
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const times = [
-    '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'
+  const allTimes = [
+    '09:30', '10:20', '11:10', '12:00', 'LUNCH', '13:00', '13:50', '14:40', '15:30', '16:20', '17:10'
   ];
 
+  const times = allTimes.filter(t => {
+    if (t === 'LUNCH') return true; // Always show lunch
+    const [hour, min] = t.split(':').map(Number);
+    const totalMins = hour * 60 + min;
+    if (shift === 'Morning') return totalMins < 13 * 60; // Before 1 PM
+    if (shift === 'Evening') return totalMins >= 13 * 60; // After 1 PM
+    return true;
+  });
+
   const handleSlotClick = (day, time) => {
-    const nextHour = (parseInt(time.split(':')[0]) + 1).toString().padStart(2, '0') + ':00';
+    // Find the next time slot (50-minute periods)
+    const currentIdx = allTimes.indexOf(time);
+    const nextTime = allTimes[currentIdx + 1] === 'LUNCH' ? allTimes[currentIdx + 2] : allTimes[currentIdx + 1];
     setSelectedSlot({ day });
-    setFormData(prev => ({ ...prev, startTime: time, endTime: nextHour }));
+    setFormData(prev => ({ ...prev, startTime: time, endTime: nextTime || time }));
     setIsModalOpen(true);
     setError('');
   };
@@ -596,10 +648,10 @@ function SessionsView({ store }) {
       if (!formData.lecturerId) throw new Error("Please select a lecturer");
       addSession({
         ...formData,
-        day: selectedSlot.day,
-        time: selectedSlot.time
+        day: selectedSlot.day
       });
       setIsModalOpen(false);
+      setFormData(prev => ({ ...prev, lecturerId: '' })); // Reset for next
     } catch (err) {
       setError(err.message);
     }
@@ -607,17 +659,62 @@ function SessionsView({ store }) {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <h2 className="text-4xl font-extrabold tracking-tight">Schedule Hub</h2>
-        <div className="flex gap-4">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="bg-antigravity-card border border-antigravity-border rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-antigravity-accent text-antigravity-text"
+
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Shift Toggle */}
+          <div className="flex items-center bg-antigravity-bg border border-antigravity-border rounded-xl p-1 shadow-inner h-11">
+            {['Full Day', 'Morning', 'Evening'].map(s => (
+              <button
+                key={s}
+                onClick={() => setShift(s)}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-widest",
+                  shift === s ? "bg-antigravity-accent text-white shadow-lg" : "text-antigravity-muted hover:text-antigravity-text"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-10 w-[1px] bg-antigravity-border hidden lg:block mx-2" />
+
+          {/* Master Filters */}
+          <div className="flex items-center gap-3">
+            <select
+              value={filterType}
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setFilterValue('All');
+              }}
+              className="bg-antigravity-bg border border-antigravity-border rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-antigravity-accent text-antigravity-text appearance-none"
+            >
+              <option value="Program">Program View</option>
+              <option value="Lecturer">Lecturer View</option>
+              <option value="Room">Room View</option>
+            </select>
+
+            <select
+              value={filterValue}
+              onChange={(e) => setFilterValue(e.target.value)}
+              className="bg-antigravity-bg border border-antigravity-border rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-antigravity-accent text-antigravity-text min-w-[140px]"
+            >
+              <option value="All">All {filterType}s</option>
+              {filterType === 'Program' && data.groups.map(g => <option key={g} value={g}>{g}</option>)}
+              {filterType === 'Lecturer' && data.lecturers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {filterType === 'Room' && data.rooms.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+
+          <button
+            onClick={() => window.print()}
+            className="p-3 bg-antigravity-card border border-antigravity-border rounded-xl hover:text-antigravity-accent transition-colors shadow-sm"
+            title="Print Timetable"
           >
-            <option>All Programs</option>
-            {data.groups.map(g => <option key={g}>{g}</option>)}
-          </select>
+            <Printer size={18} />
+          </button>
         </div>
       </div>
 
@@ -629,79 +726,104 @@ function SessionsView({ store }) {
           ))}
         </div>
 
-        {times.slice(0, -1).map((time, idx) => (
-          <div key={time} className="grid grid-cols-6 border-b border-antigravity-border last:border-0 group/row">
-            <div className="p-6 border-r border-antigravity-border text-xs font-mono font-bold text-antigravity-muted flex items-center justify-center bg-antigravity-border/10">
-              {time}
-            </div>
-            {days.map(day => {
-              // Aggregate logic: filter by program OR show all if "All Programs"
-              const sessions = data.sessions.filter(s =>
-                s.day === day &&
-                s.startTime === time &&
-                (filter === 'All Programs' || s.class === filter)
-              );
-
-              return (
-                <div
-                  key={day}
-                  onClick={() => sessions.length === 0 && handleSlotClick(day, time)}
-                  className={cn(
-                    "p-2 border-r border-antigravity-border last:border-0 min-h-[140px] transition-all relative group flex flex-col gap-2",
-                    sessions.length === 0 && "hover:bg-antigravity-accent/[0.04] cursor-pointer"
-                  )}
-                >
-                  {sessions.map(session => {
-                    const lec = data.lecturers.find(l => l.id === session.lecturerId);
-                    const durationInHours = parseInt(session.endTime.split(':')[0]) - parseInt(session.startTime.split(':')[0]);
-
-                    return (
-                      <motion.div
-                        key={session.id}
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className={cn(
-                          "bg-antigravity-bg border border-antigravity-border rounded-xl p-3 shadow-lg relative group/item z-10",
-                          durationInHours > 1 && "absolute left-2 right-2 top-2",
-                          "hover:border-antigravity-accent/50 transition-colors"
-                        )}
-                        style={{
-                          height: durationInHours > 1 ? `calc(${durationInHours * 100}% + ${(durationInHours - 1) * 1}px)` : '100%',
-                          minHeight: '120px'
-                        }}
-                      >
-                        {isAdmin && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); removeSession(session.id); }}
-                            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity active:scale-90 z-20"
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
-                        <div className="text-[10px] font-bold text-antigravity-accent mb-1 flex justify-between items-center capitalize">
-                          <span>{session.class}</span>
-                          <span className="opacity-50">{session.room}</span>
-                        </div>
-                        <div className="text-xs font-bold leading-tight mb-2 line-clamp-2">{session.subject}</div>
-                        <div className="mt-auto flex justify-between items-end">
-                          <div className="text-[9px] text-antigravity-muted font-extrabold truncate uppercase tracking-tighter">DR. {lec?.name.toUpperCase()}</div>
-                          <div className="text-[8px] font-mono opacity-40">{session.startTime}-{session.endTime}</div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                  {sessions.length === 0 && (
-                    <div className="opacity-0 group-hover:opacity-100 absolute inset-0 flex items-center justify-center transition-opacity">
-                      <div className="w-8 h-8 rounded-full bg-antigravity-accent flex items-center justify-center shadow-2xl shadow-antigravity-accent/50 group-active:scale-90 transition-transform">
-                        <Plus size={16} className="text-white" />
-                      </div>
-                    </div>
-                  )}
+        {times.map((time, idx) => {
+          // Special handling for lunch break
+          if (time === 'LUNCH') {
+            return (
+              <div key="lunch" className="grid grid-cols-6 border-b border-antigravity-border bg-antigravity-accent/5">
+                <div className="p-4 border-r border-antigravity-border text-xs font-bold text-antigravity-accent flex items-center justify-center uppercase tracking-widest">
+                  12:00
                 </div>
-              );
-            })}
-          </div>
-        ))}
+                <div className="col-span-5 p-4 flex items-center justify-center">
+                  <div className="px-6 py-2 bg-antigravity-accent/10 border border-antigravity-accent/30 rounded-xl text-sm font-bold text-antigravity-accent uppercase tracking-widest">
+                    🍽️ Lunch Break (12:00 - 1:00 PM)
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={time} className="grid grid-cols-6 border-b border-antigravity-border last:border-0 group/row">
+              <div className="p-6 border-r border-antigravity-border text-xs font-mono font-bold text-antigravity-muted flex items-center justify-center bg-antigravity-border/10">
+                {time}
+              </div>
+              {days.map(day => {
+                // Advanced Aggregation Logic
+                const sessions = data.sessions.filter(s => {
+                  const dayMatch = s.day === day && s.startTime === time;
+                  if (!dayMatch) return false;
+
+                  if (filterValue === 'All') return true;
+
+                  if (filterType === 'Program') return s.class === filterValue;
+                  if (filterType === 'Lecturer') return s.lecturerId === filterValue;
+                  if (filterType === 'Room') return s.room === filterValue;
+
+                  return true;
+                });
+
+                return (
+                  <div
+                    key={day}
+                    onClick={() => sessions.length === 0 && handleSlotClick(day, time)}
+                    className={cn(
+                      "p-2 border-r border-antigravity-border last:border-0 min-h-[140px] transition-all relative group flex flex-col gap-2",
+                      sessions.length === 0 && "hover:bg-antigravity-accent/[0.04] cursor-pointer"
+                    )}
+                  >
+                    {sessions.map(session => {
+                      const lec = data.lecturers.find(l => l.id === session.lecturerId);
+                      const durationInHours = parseInt(session.endTime.split(':')[0]) - parseInt(session.startTime.split(':')[0]);
+
+                      return (
+                        <motion.div
+                          key={session.id}
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className={cn(
+                            "bg-antigravity-bg border border-antigravity-border rounded-xl p-3 shadow-lg relative group/item z-10",
+                            durationInHours > 1 && "absolute left-2 right-2 top-2",
+                            "hover:border-antigravity-accent/50 transition-colors"
+                          )}
+                          style={{
+                            height: durationInHours > 1 ? `calc(${durationInHours * 100}% + ${(durationInHours - 1) * 1}px)` : '100%',
+                            minHeight: '120px'
+                          }}
+                        >
+                          {isAdmin && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removeSession(session.id); }}
+                              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity active:scale-90 z-20"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                          <div className="text-[10px] font-bold text-antigravity-accent mb-1 flex justify-between items-center capitalize">
+                            <span>{session.class}</span>
+                            <span className="opacity-50">{session.room}</span>
+                          </div>
+                          <div className="text-xs font-bold leading-tight mb-2 line-clamp-2">{session.subject}</div>
+                          <div className="mt-auto flex justify-between items-end">
+                            <div className="text-[9px] text-antigravity-muted font-extrabold truncate uppercase tracking-tighter">DR. {lec?.name.toUpperCase()}</div>
+                            <div className="text-[8px] font-mono opacity-40">{session.startTime}-{session.endTime}</div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                    {sessions.length === 0 && (
+                      <div className="opacity-0 group-hover:opacity-100 absolute inset-0 flex items-center justify-center transition-opacity">
+                        <div className="w-8 h-8 rounded-full bg-antigravity-accent flex items-center justify-center shadow-2xl shadow-antigravity-accent/50 group-active:scale-90 transition-transform">
+                          <Plus size={16} className="text-white" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
       <AnimatePresence>
